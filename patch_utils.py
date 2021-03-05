@@ -7,7 +7,7 @@ import torch
 
 # Initialize the patch
 # TODO: Add circle type
-def patch_initialization(patch_type='rectangle', image_size=(3, 224, 224), noise_percentage=0.03):
+def patch_initialization(patch_type='rectangle', image_size=(3, 224, 224), noise_percentage=0.01):
     if patch_type == 'rectangle':
         mask_length = int((noise_percentage * image_size[1] * image_size[2])**0.5)
         patch = np.random.rand(image_size[0], mask_length, mask_length)
@@ -49,7 +49,9 @@ def test_patch(patch_type, target, patch, test_loader, model):
             perturbated_image = torch.mul(mask.type(torch.FloatTensor), applied_patch.type(torch.FloatTensor)) + torch.mul((1 - mask.type(torch.FloatTensor)), image.type(torch.FloatTensor))
             perturbated_image = perturbated_image.cuda()
             output = model(perturbated_image)
+            output2 = model2(perturbated_image)
             _, predicted = torch.max(output.data, 1)
-            if predicted[0].data.cpu().numpy() == target:
+            _, predicted2 = torch.max(output2.data, 1)
+            if predicted[0].data.cpu().numpy() == target and predicted2[0].data.cpu().numpy() == target:
                 test_success += 1
     return test_success / test_actual_total

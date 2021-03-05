@@ -10,6 +10,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+# from datasets import LMDBDataset
 
 # Load the datasets
 # We randomly sample some images from the dataset, because ImageNet itself is too large.
@@ -37,8 +38,12 @@ def dataloader(train_size, test_size, data_dir, batch_size, num_workers, total_n
     train_dataset = torchvision.datasets.ImageFolder(root=data_dir, transform=train_transforms)
     test_dataset = torchvision.datasets.ImageFolder(root=data_dir, transform=test_transforms)
 
+    # data_path = 'metadata_train.npz'
+    # train_dataset = LMDBDataset(data_path, transform=train_transform, target_transform=None)
+    # test_dataset = LMDBDataset(data_path, transform=train_transform, target_transform=None)
+
     train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, sampler=SubsetRandomSampler(train_index), num_workers=num_workers, pin_memory=True, shuffle=False)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, sampler=SubsetRandomSampler(test_index), num_workers=num_workers, pin_memory=True, shuffle=False)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, sampler=SubsetRandomSampler(test_index), num_workers=num_workers, pin_memory=True,           shuffle=False)
     return train_loader, test_loader
 
 # Test the model on clean dataset
