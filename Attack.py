@@ -78,14 +78,25 @@ def patch_attack(image, applied_patch, mask, target, probability_threshold, mode
     print(f"Iteration count: {count}")
     return perturbated_image, applied_patch
 
+
+class StackModel(torch.nn.Module):
+    def __init__(self):
+        super(StackModel, self).__init__()
+        self.resnet50 = models.resnet50(pretrained=True)
+        self.inception_v3 = models.inception_v3(pretrained=True)
+
+    def forward(self, x):
+        out_resnet = self.resnet50(x)
+        out_inception = self.inception_v3(x)
+        return  torch.mean(torch.stack([out_resnet, out_inception]), dim=0) 
+
+
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 
 # Load the model
-model = models.resnet50(pretrained=True).cuda()
-model.eval()
-
-model2 = models.inception_v3(pretrained=True).cuda()
-model2.eval()
+model = StackModel()
+if torch.cuda.is_available():
+    model.cuda()
 
 # Load the datasets
 train_loader, test_loader = dataloader(args.train_size, args.test_size, args.data_dir, args.batch_size, args.num_workers, 50000)
@@ -123,44 +134,28 @@ for epoch in range(args.epochs):
             perturbated_image = torch.from_numpy(perturbated_image).cuda()
             output = model(perturbated_image)
             _, predicted = torch.max(output.data, 1)
-            #  if predicted[0].data.cpu().numpy() == args.target:
-            #      train_success += 1
+            if predicted[0].data.cpu().numpy() == args.target:
+                train_success += 1
             patch = applied_patch[0][:, x_location:x_location + patch.shape[1], y_location:y_location + patch.shape[2]]
-
-             #test on model 2
-            output2 = model2(perturbated_image)
-            _, predicted2 = torch.max(output2.data, 1)
-            if predicted2[0] != label and predicted2[0].data.cpu().numpy() != args.target:
-                applied_patch, mask, x_location, y_location = mask_generation(args.patch_type, patch, image_size=(3, 224, 224))
-                print("Patch attack with model2")
-                perturbated_image, applied_patch = patch_attack(image, applied_patch, mask, args.target, args.probability_threshold, model2, args.lr, args.max_iteration)
-                perturbated_image = torch.from_numpy(perturbated_image).cuda()
-                output2 = model2(perturbated_image)
-                _, predicted2 = torch.max(output2.data, 1)
-                output = model(perturbated_image)
-                _, predicted = torch.max(output.data, 1)
-                if predicted2[0].data.cpu().numpy() == args.target and predicted[0].data.cpu().numpy() == args.target:
-                    mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-                    img = np.clip(np.transpose(perturbated_image.cpu().numpy()[0], (1, 2, 0)) * std + mean, 0, 1) 
-                    plt.imsave("training_pictures/" + str(epoch) + " perturbated_image.png", img)
-                    train_success += 1
-                patch = applied_patch[0][:, x_location:x_location + patch.shape[1], y_location:y_location + patch.shape[2]]
 
     mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     patch_img = np.clip(np.transpose(patch, (1, 2, 0)) * std + mean, 0, 1) 
     plt.imsave("training_pictures/" + str(epoch) + " patch.png", patch_img)
 
 
-
+    resnet50 = models.resnet50(pretrained=True).cuda()
+    # resnet50.eval()
+    inception_v3 = models.inception_v3(pretrained=True).cuda()
+    # inception_v3.eval()
     print("Epoch:{} Patch attack success rate while training: {:.3f}%".format(epoch, 100 * train_success / train_actual_total))
-    train_success_rate = test_patch(args.patch_type, args.target, patch, train_loader, model)
-    print("Epoch:{} Model1 Patch attack success rate on trainset: {:.3f}%".format(epoch, 100 * train_success_rate))
-    train_success_rate = test_patch(args.patch_type, args.target, patch, train_loader, model2)
-    print("Epoch:{} Model2 Patch attack success rate on trainset: {:.3f}%".format(epoch, 100 * train_success_rate))
-    test_success_rate = test_patch(args.patch_type, args.target, patch, test_loader, model)
-    print("Epoch:{} Model1 Patch attack success rate on testset: {:.3f}%".format(epoch, 100 * test_success_rate))
-    test_success_rate = test_patch(args.patch_type, args.target, patch, test_loader, model2)
-    print("Epoch:{} Model2 Patch attack success rate on testset: {:.3f}%".format(epoch, 100 * test_success_rate))
+    train_success_rate = test_patch(args.patch_type, args.target, patch, train_loader, resnet50)
+    print("Epoch:{} Resnet Patch attack success rate on trainset: {:.3f}%".format(epoch, 100 * train_success_rate))
+    train_success_rate = test_patch(args.patch_type, args.target, patch, train_loader, inception_v3)
+    print("Epoch:{} Inception Patch attack success rate on trainset: {:.3f}%".format(epoch, 100 * train_success_rate))
+    test_success_rate = test_patch(args.patch_type, args.target, patch, test_loader, resnet50)
+    print("Epoch:{} Resnet Patch attack success rate on testset: {:.3f}%".format(epoch, 100 * test_success_rate))
+    test_success_rate = test_patch(args.patch_type, args.target, patch, test_loader, inception_v3)
+    print("Epoch:{} Inception Patch attack success rate on testset: {:.3f}%".format(epoch, 100 * test_success_rate))
 
     # Record the statistics
     with open(args.log_dir, 'a') as f:

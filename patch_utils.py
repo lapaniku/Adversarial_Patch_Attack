@@ -49,9 +49,7 @@ def test_patch(patch_type, target, patch, test_loader, model):
             perturbated_image = torch.mul(mask.type(torch.FloatTensor), applied_patch.type(torch.FloatTensor)) + torch.mul((1 - mask.type(torch.FloatTensor)), image.type(torch.FloatTensor))
             perturbated_image = perturbated_image.cuda()
             output = model(perturbated_image)
-            output2 = model2(perturbated_image)
             _, predicted = torch.max(output.data, 1)
-            _, predicted2 = torch.max(output2.data, 1)
-            if predicted[0].data.cpu().numpy() == target and predicted2[0].data.cpu().numpy() == target:
+            if predicted[0].data.cpu().numpy() == target:
                 test_success += 1
     return test_success / test_actual_total
